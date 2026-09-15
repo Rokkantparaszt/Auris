@@ -8,8 +8,8 @@
       <button class="settings-nav-item" type="button" role="tab" aria-selected="false" aria-controls="settings-setup" data-settings-target="setup" onclick="showSettingsCategory('setup')">Gyors beállítás</button>
       <button class="settings-nav-item" type="button" role="tab" aria-selected="false" aria-controls="settings-dictionary" data-settings-target="dictionary" onclick="showSettingsCategory('dictionary')">Kiejtési szótár</button>
       <button class="settings-nav-item" type="button" role="tab" aria-selected="false" aria-controls="settings-storage" data-settings-target="storage" onclick="showSettingsCategory('storage')">Tárhely és mentés</button>
-      <button class="settings-nav-item active" type="button" role="tab"
-              aria-selected="true" aria-controls="settings-speech"
+      <button class="settings-nav-item" type="button" role="tab"
+              aria-selected="false" aria-controls="settings-speech"
               data-settings-target="speech" onclick="showSettingsCategory('speech')">Beszédmotorok</button>
       <button class="settings-nav-item" type="button" role="tab"
               aria-selected="false" aria-controls="settings-characters"
@@ -23,9 +23,42 @@
     </nav>
     <div class="settings-panels">
       <div class="settings-category" id="settings-setup" data-settings-category="setup" role="tabpanel" hidden>
-        <section class="settings-section setup-steps"><h2>Kezdj egy magyar próbahanggal</h2><p>Az elsődleges beszédmotor az OmniVoice. A minőségprofil a generálás részletességét állítja; a tényleges sebesség a gépedtől és a szövegtől függ.</p>
-          <div id="setup-hardware" role="status">Gép ellenőrzése…</div>
-          <div class="experience-form"><label>Minőségprofil<select id="setup-profile"><option value="fast">Gyors — 8 lépés</option><option value="balanced" selected>Kiegyensúlyozott — 16 lépés</option><option value="detailed">Részletes — 32 lépés</option></select></label><div class="actions"><button class="btn btn-primary" type="button" onclick="applySetupProfile(false)">Profil alkalmazása</button><button class="btn btn-ghost" type="button" onclick="showSettingsCategory('speech')">Modell beállítása / letöltése</button></div><p>Ha még nincs modell, a beszédmotor beállításainál válaszd a letöltést. Meglévő modell esetén az útvonalat ellenőrizd, majd töltsd be a motort.</p><div class="actions"><button class="btn btn-ghost" type="button" onclick="loadSetupEngine()">Beszédmotor betöltése</button><button class="btn btn-ghost" type="button" id="setup-preview" onclick="previewSetupVoice()">Magyar próbahang</button><button class="btn btn-primary" type="button" onclick="applySetupProfile(true)">Beállítás befejezése</button></div></div><p id="setup-message" class="experience-message" role="status" aria-live="polite"></p><audio id="setup-audio" controls class="hidden"></audio>
+        <section class="settings-section setup-steps"><h2>Gyors beállítás</h2><p>Az Auris a saját gépeden olvas fel. Ehhez egyszer be kell állítani a beszédmotort – kövesd a lépéseket fentről lefelé. A zöld „Kész” jelzés azt mutatja, hogy az adott lépéssel nincs több teendő.</p>
+          <p id="setup-hardware" class="muted" role="status">Gép ellenőrzése…</p>
+          <ol class="setup-checklist">
+            <li><h3>1. Beszédmotor letöltése <span id="setup-download-state" class="setup-state">Ellenőrzés…</span></h3>
+              <p>Egyszeri, kb. 3 GB-os letöltés az internetről (a kapcsolattól függően néhány perctől akár egy óráig). Utána internet nélkül is működik.</p>
+              <div class="actions"><button class="btn btn-primary" type="button" id="setup-download" onclick="startSetupDownload()">Letöltés indítása</button><button class="btn btn-ghost" type="button" onclick="showSettingsCategory('speech')">Már letöltöttem máshová</button></div>
+              <div id="setup-download-progress" class="progress-wrap hidden"><div class="progress-bar-outer"><div class="progress-bar-inner" id="setup-download-bar"></div></div><div id="setup-download-msg" class="progress-msg"></div></div>
+            </li>
+            <li><h3>2. Beszédmotor elindítása <span id="setup-engine-state" class="setup-state">Ellenőrzés…</span></h3>
+              <p>Könyv megnyitásakor magától is elindul. Első alkalommal pár percig tarthat.</p>
+              <div class="actions"><button class="btn btn-ghost" type="button" onclick="loadSetupEngine()">Elindítás most</button></div>
+            </li>
+            <li><h3>3. Próbahang meghallgatása</h3>
+              <p>Hallgass bele, hogy biztosan működik-e a hang.</p>
+              <div class="actions"><button class="btn btn-ghost" type="button" id="setup-preview" onclick="previewSetupVoice()">▶ Magyar próbahang</button></div>
+              <audio id="setup-audio" controls class="hidden"></audio>
+            </li>
+            <li><h3>Minőség vagy sebesség? <span class="setup-state">Nem kötelező</span></h3>
+              <p>Lassabb gépen válaszd a „Gyors” beállítást. Ha a hang nem elég tiszta, próbáld a „Részletes”-t.</p>
+              <div class="actions"><select id="setup-profile"><option value="fast">Gyors</option><option value="balanced" selected>Kiegyensúlyozott (ajánlott)</option><option value="detailed">Részletes (lassabb)</option></select><button class="btn btn-ghost" type="button" onclick="applySetupProfile(true)">Alkalmazás</button></div>
+            </li>
+            <li><h3>Automatikus átirat saját hanghoz <span id="setup-stt-state" class="setup-state">Ellenőrzés…</span></h3>
+              <p>Ha felvételből készítesz hangot, az Auris magától leírja, mi hangzik el rajta – neked csak ellenőrizni kell. A beszédfelismerő (Whisper) a gépeden fut, internet és fiók nélkül. Egyszeri, kb. 1,6 GB-os letöltés.</p>
+              <div class="actions"><button class="btn btn-ghost" type="button" id="setup-stt-download" onclick="startSttDownload(this)">Beszédfelismerő letöltése</button></div>
+              <div id="setup-stt-progress" class="progress-wrap hidden"><div class="progress-bar-outer"><div class="progress-bar-inner" id="setup-stt-bar"></div></div><div id="setup-stt-msg" class="progress-msg"></div></div>
+            </li>
+            <li><h3>MP3 és M4B mentés <span id="setup-ffmpeg-state" class="setup-state">Ellenőrzés…</span></h3>
+              <p>A hangoskönyv MP3 vagy M4B fájlba mentéséhez az ingyenes FFmpeg program kell. WAV-ba enélkül is menthetsz.</p>
+              <div class="actions"><a class="btn btn-ghost" href="/docs#import-tools">Telepítési útmutató</a></div>
+            </li>
+            <li><h3>Szereplőhangok felismerése <span id="setup-llm-state" class="setup-state">Ellenőrzés…</span></h3>
+              <p>Ahhoz, hogy saját könyveidben a szereplők külön hangon beszéljenek, egy nyelvi modell kell, ami megállapítja, ki mit mond (például az ingyenes LM Studio program, vagy OpenAI-fiók). Egy narrátorhoz nem kell.</p>
+              <div class="actions"><button class="btn btn-ghost" type="button" onclick="showSettingsCategory('characters')">Nyelvi modell beállítása</button></div>
+            </li>
+          </ol>
+          <p id="setup-message" class="experience-message" role="status" aria-live="polite"></p>
         </section>
       </div>
       <div class="settings-category" id="settings-dictionary" data-settings-category="dictionary" role="tabpanel" hidden>

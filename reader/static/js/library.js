@@ -90,8 +90,20 @@ function renderBooks() {
     $("continue-card").innerHTML =
       `<div><span class="eyebrow">Ahol abbahagytad</span><h2>${esc(recent.title)}</h2><p>${esc(recent.progress_chapter_title || "Mentett hely")}</p></div><a class="btn btn-primary" href="/reader/${recent.id}">Folytatom</a>`;
   if (!books.length) {
-    $("book-grid").innerHTML =
-      `<div class="empty-library"><p>${libraryBooks.length ? "Nincs a szűrésnek megfelelő könyv." : "Válaszd ki az első történeted."}</p><p class="sub">EPUB, PDF, DOCX, TXT, PRC/MOBI vagy webcikk — a tartalmat import előtt ellenőrizheted.</p></div>`;
+    if (libraryBooks.length) {
+      $("book-grid").innerHTML =
+        `<div class="empty-library"><p>Nincs a szűrésnek megfelelő könyv.</p><p class="sub">Töröld a keresést, vagy állítsd a szűrőket „Mindegyik”-re.</p></div>`;
+    } else {
+      $("book-grid").innerHTML = `
+        <div class="empty-library-hero">
+          <h2>Még nincs könyv a könyvtáradban</h2>
+          <p>Tölts fel egy e-könyvet a gépedről (EPUB, PDF, DOCX, TXT, MOBI), vagy próbáld ki az Aurist egy kétperces történeten, amelyben a szereplők hangjai már be vannak állítva.</p>
+          <div class="empty-library-actions">
+            <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">+ Saját könyv feltöltése</button>
+            <button class="btn btn-ghost" onclick="window.AurisGuide?.addDemoBook(this)">Próbakönyv hozzáadása</button>
+          </div>
+        </div>`;
+    }
     return;
   }
   const labels = {
@@ -102,7 +114,7 @@ function renderBooks() {
   $("book-grid").innerHTML = books
     .map(
       (b) =>
-        `<article class="book-card" data-id="${b.id}"><a class="book-cover" href="/reader/${b.id}" aria-label="${esc(b.title)} megnyitása">${b.cover_url ? `<img src="${b.cover_url}" alt="" loading="lazy">` : `<div class="book-cover-placeholder">${esc(b.title)}</div>`}</a><span class="book-type-badge">${esc(b.file_type)}</span><div class="book-info"><h2 class="book-title">${esc(b.title)}</h2><div class="book-author">${esc(b.author || "Ismeretlen szerző")}</div><p class="book-progress-hint">${labels[effectiveState(b)]} · ${b.total_chapters} fejezet</p>${b.series ? `<p class="book-progress-hint">${esc(b.series)}</p>` : ""}${["queued", "running"].includes(b.character_analysis_status) ? '<p class="status-warn">Szereplők elemzése folyamatban…</p>' : ""}</div><div class="book-actions"><a href="/reader/${b.id}">${b.progress_chapter_id ? "Folytatás" : "Olvasás"}</a><button onclick="openBookDetails(${b.id})">Adatok</button><button class="del-btn" onclick="deleteBook(event,${b.id})" aria-label="${esc(b.title)} eltávolítása">Eltávolítás</button></div></article>`,
+        `<article class="book-card" data-id="${b.id}" id="book-card-${b.id}"><a class="book-cover" href="/reader/${b.id}" aria-label="${esc(b.title)} megnyitása">${b.cover_url ? `<img src="${b.cover_url}" alt="" loading="lazy">` : `<div class="book-cover-placeholder">${esc(b.title)}</div>`}</a><span class="book-type-badge">${esc(b.file_type)}</span>${b.is_sample ? '<span class="badge-sample">Próbakönyv</span>' : ''}<div class="book-info"><h2 class="book-title">${esc(b.title)}</h2><div class="book-author">${esc(b.author || "Ismeretlen szerző")}</div><p class="book-progress-hint">${labels[effectiveState(b)]} · ${b.total_chapters} fejezet</p>${b.series ? `<p class="book-progress-hint">${esc(b.series)}</p>` : ""}${["queued", "running"].includes(b.character_analysis_status) ? '<p class="status-warn">Szereplők elemzése folyamatban…</p>' : ""}</div><div class="book-actions"><a href="/reader/${b.id}">${b.progress_chapter_id ? "Folytatás" : "Meghallgatás"}</a><a href="/voice-studio/${b.id}">Hangok</a><button onclick="openBookDetails(${b.id})">Adatok</button><button class="del-btn" onclick="deleteBook(event,${b.id})" aria-label="${esc(b.title)} eltávolítása">Eltávolítás</button></div></article>`,
     )
     .join("");
 }
@@ -179,23 +191,80 @@ async function showImportPreview(data) {
   $("import-error").textContent = "";
   document.querySelector('[name="narration-mode"][value="single"]').checked =
     true;
+  let guide = null;
   try {
-    importSettings = await api("/api/settings");
+    [importSettings, guide] = await Promise.all([
+      api("/api/settings"),
+      api("/api/guide/status"),
+    ]);
   } catch {
     importSettings = null;
   }
+  // Multi-voice needs a language model; say so before the user commits.
+  const llmReady = Boolean(guide?.llm_configured);
+  const multiInput = document.querySelector('[name="narration-mode"][value="multi"]');
+  multiInput.disabled = !llmReady;
+  $("multi-option").classList.toggle("is-disabled", !llmReady);
+  $("multi-option-text").innerHTML = llmReady
+    ? "Minden szereplő saját hangon beszél. Előtte egy nyelvi modell megkeresi, ki mit mond – ez könyvtől függően több percig tart."
+    : 'Minden szereplő saját hangon beszél. Ehhez előbb be kell állítani egy nyelvi modellt: <a href="/settings#characters">Beállítás</a>. Addig válaszd az „Egy narrátor” módot – később átválthatsz.';
+  await loadImportVoices();
   updateImportNote();
   $("import-dialog").showModal();
   $("import-title").focus();
 }
+async function loadImportVoices() {
+  try {
+    const [builtins, profiles] = await Promise.all([
+      api("/api/voices/builtin"),
+      api("/api/voice-profiles"),
+    ]);
+    const previous = $("import-voice").value;
+    $("import-voice").innerHTML =
+      '<option value="">Alapértelmezett hang</option>' +
+      (profiles.length
+        ? `<optgroup label="Hangjaim">${profiles.map((p) => `<option value="profile:${p.id}">${esc(p.name)}</option>`).join("")}</optgroup>`
+        : "") +
+      `<optgroup label="Beépített hangok">${builtins.map((v) => `<option value="builtin:${esc(v.id)}">${esc(v.name)} – ${esc(v.description)}</option>`).join("")}</optgroup>`;
+    $("import-voice").value = previous;
+  } catch {
+    /* The default voice still works. */
+  }
+}
+function importVoiceChoice() {
+  const [kind, id] = $("import-voice").value.split(":");
+  if (kind === "profile") return { profile_id: Number(id) };
+  if (kind === "builtin") return { builtin_id: id };
+  return null;
+}
+$("import-voice-preview").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  const voice = importVoiceChoice();
+  if (!voice) {
+    $("import-model-note").textContent = "Válassz hangot a listából a meghallgatáshoz.";
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Készül…";
+  try {
+    const data = await post("/api/voices/preview", voice);
+    $("import-voice-audio").src = `${data.audio_url}?t=${Date.now()}`;
+    await $("import-voice-audio").play();
+  } catch (e) {
+    $("import-model-note").textContent = e.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = "▶ Meghallgatás";
+  }
+});
 function updateImportNote() {
   const multi =
     document.querySelector('[name="narration-mode"]:checked').value === "multi";
   $("import-model-note").textContent = !multi
-    ? "Helyi felolvasás, nyelvimodell-hívás nélkül."
+    ? ""
     : importSettings?.llm_provider === "openai"
-      ? "OpenAI-elemzés: a könyv szövege az OpenAI szolgáltatásához kerül. Ez API-költséggel jár."
-      : "A szereplőelemzés a beállított helyi nyelvi modellt használja. A felolvasásra az elemzés után kerülhet sor.";
+      ? "Figyelem: a könyv szövege az OpenAI-hoz kerül elemzésre, ami API-költséggel jár."
+      : "A szereplők felismerése a gépeden fut. Közben a Feladatok oldalon követheted, meddig tart.";
 }
 document
   .querySelectorAll('[name="narration-mode"]')
@@ -217,11 +286,26 @@ async function confirmImport() {
       narration_mode: document.querySelector('[name="narration-mode"]:checked')
         .value,
     });
+    const voice = importVoiceChoice();
+    let voiceWarning = "";
+    if (voice) {
+      try {
+        await post(`/api/books/${d.book_id}/voice-assign`, { ...voice, char_id: null });
+      } catch (error) {
+        voiceWarning = ` A hangot nem sikerült beállítani (${error.message}), a könyvben a „Hangok” gombbal választhatsz.`;
+      }
+    }
     $("import-dialog").close();
-    status(
-      `„${d.title}” hozzáadva. ${d.analysis_status === "queued" ? "A szereplőelemzés követhető a Feladatok oldalon." : "Megnyithatod és hallgathatod."}`,
-    );
+    $("import-status").className = "import-status";
+    $("import-status").innerHTML =
+      `<strong>„${esc(d.title)}” hozzáadva.</strong> ` +
+      (d.analysis_status === "queued"
+        ? `A szereplők felismerése elindult – a <a href="/jobs">Feladatok</a> oldalon követheted. Ha kész, a könyv szereplőhangokkal szól. `
+        : "") +
+      esc(voiceWarning) +
+      ` <a class="btn btn-sm btn-primary" href="/reader/${d.book_id}">Megnyitás és meghallgatás</a>`;
     await loadBooks();
+    window.AurisGuide?.refresh();
   } catch (e) {
     $("import-error").textContent = e.message;
   } finally {
@@ -355,9 +439,6 @@ async function confirmDelete() {
   }
 }
 loadBooks();
-api("/api/setup/status")
-  .then((s) => $("welcome-card").classList.toggle("hidden", s.completed))
-  .catch(() => {});
 setInterval(() => {
   if (
     libraryBooks.some((b) =>

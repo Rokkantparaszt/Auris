@@ -8,7 +8,7 @@
   <aside class="toc-sidebar" id="toc-sidebar" aria-label="Tartalomjegyzék">
     <div class="toc-header">
       <span class="book-title-short" title="{{ book.title }}">{{ book.title }}</span>
-      <a href="/voice-studio/{{ book.id }}" id="voice-studio-link" class="btn btn-sm btn-ghost" title="Voice Studio">Hangok</a>
+      <a href="/voice-studio/{{ book.id }}" id="voice-studio-link" class="btn btn-sm btn-ghost" title="Narrátor és szereplők hangja">Hangok</a>
       <button id="toc-close" class="btn btn-sm btn-ghost toc-close" title="Tartalomjegyzék bezárása" aria-label="Tartalomjegyzék bezárása">&#215;</button>
     </div>
     <div class="chapter-generate-card" id="chapter-generate-card">
@@ -31,6 +31,7 @@
       <div id="chapter-generate-status" class="chapter-generate-status">
         Nyiss meg egy fejezetet az állapot megtekintéséhez.
       </div>
+      <p class="export-help">Nem kötelező. Előre elkészíti a fejezet hangját, így lejátszáskor nem kell várni.</p>
     </div>
     <div id="toc-list" class="toc-list">
       <div class="loading-spinner">Betöltés…</div>
@@ -45,6 +46,7 @@
       <span id="reading-estimate" class="reading-estimate"></span>
 
       <div class="font-controls">
+        <a class="btn btn-sm btn-export-main" href="/voice-studio/{{ book.id }}" title="Ki olvassa a könyvet? Narrátor és szereplőhangok">🎙 Hangok</a>
         <button class="btn btn-sm btn-ghost" id="text-editor-open" type="button">Szöveg szerkesztése</button>
         {% if not book.single_narrator_mode %}
         <button class="btn btn-sm btn-ghost" id="speaker-label-toggle"
@@ -77,6 +79,8 @@
       <button class="btn btn-sm btn-ghost" onclick="toggleSpeakerEditMode()">Kész</button>
     </div>
     {% endif %}
+
+    <div id="reader-tip" class="reader-tip-wrap" hidden></div>
 
     <div class="chapter-progress-bar" id="chapter-progress-bar">
       <div class="chapter-progress-fill" id="chapter-progress-fill" style="width:0%"></div>
@@ -194,18 +198,19 @@
     <input id="speed-slider" type="range" min="0.5" max="2.0" step="0.1" value="1.0" class="pb-slider" aria-label="Lejátszási sebesség">
     <span id="speed-val" style="font-size:.75rem;color:var(--text2);font-family:'Courier New',monospace">1.0&#215;</span>
     <div class="export-menu-wrap">
-      <button class="btn btn-sm btn-ghost" id="export-btn" aria-expanded="false" aria-controls="export-dropdown">&#8595; Exportálás</button>
-      <div class="export-dropdown hidden" id="export-dropdown" role="dialog" aria-label="Hang exportálása">
-        <div class="export-dropdown-title">Hang exportálása</div>
-        <div class="export-section">
-          <label for="export-preset"><b>Cél</b></label>
-          <select id="export-preset" class="select-input">
-            <option value="chapter-wav">Aktuális fejezet szerkesztéshez</option>
-            <option value="selected-mp3">Kijelölt fejezetek megosztáshoz</option>
-            <option value="book-m4b">Hangoskönyv M4B formátumban</option>
-            <option value="custom">Egyéni beállítások</option>
-          </select>
+      <button class="btn btn-sm btn-export-main" id="export-btn" aria-expanded="false" aria-controls="export-dropdown">&#8595; Hangoskönyv mentése</button>
+      <div class="export-dropdown hidden" id="export-dropdown" role="dialog" aria-label="Hangoskönyv mentése">
+        <div class="export-dropdown-title">Hangoskönyv mentése fájlba</div>
+        <p class="export-help">Mit szeretnél menteni? A még el nem készült hangokat az Auris most elkészíti – egy teljes könyvnél ez akár órákig is tarthat, közben nyugodtan bezárhatod ezt az ablakot.</p>
+        <div class="export-choices" role="radiogroup" aria-label="Mit mentsen">
+          <label class="export-choice"><input type="radio" name="export-preset" value="book-m4b" checked><span><strong>A teljes könyv egy hangoskönyv-fájlban</strong><small>M4B fájl fejezetjelekkel. Telefonos hangoskönyv-lejátszókhoz és Apple Könyvekhez.</small></span></label>
+          <label class="export-choice"><input type="radio" name="export-preset" value="selected-mp3"><span><strong>Fejezetenként MP3 fájlok</strong><small>Minden fejezet külön MP3. Szinte minden lejátszón, autóban is megy.</small></span></label>
+          <label class="export-choice"><input type="radio" name="export-preset" value="chapter-wav"><span><strong>Csak ez a fejezet</strong><small>WAV fájl, legjobb minőség, például további szerkesztéshez.</small></span></label>
+          <input type="radio" name="export-preset" value="custom" hidden aria-hidden="true" tabindex="-1">
         </div>
+        <p class="export-help" id="export-ffmpeg-note" hidden>Az MP3 és M4B mentéshez az ingyenes FFmpeg program kell, ami most nincs telepítve. A WAV mentés enélkül is működik. <a href="/docs#import-tools">Telepítési útmutató</a></p>
+        <details class="export-advanced">
+          <summary>Részletes beállítások (fejezetek, formátum, felirat)</summary>
         <div class="export-section">
           <b>Fejezetek</b>
           <label><input type="radio" name="exp-mode" value="chapter" checked> Aktuális fejezet</label>
@@ -232,13 +237,14 @@
           {% endif %}
           <label><input type="radio" name="exp-sub" value="srt"> SRT (egyszerű)</label>
         </div>
-        <button class="btn btn-primary btn-full" id="do-export-btn">Export elkészítése</button>
+        </details>
+        <button class="btn btn-primary btn-full" id="do-export-btn">Mentés indítása</button>
         <div class="export-progress-wrap" id="export-progress-wrap">
           <div class="export-progress-fill" id="export-progress-fill"></div>
         </div>
         <div id="export-status" class="export-status"></div>
         <div id="export-links" class="export-links" aria-live="polite"></div>
-        <a class="jobs-link" href="/jobs">Exportok követése a Feladatok oldalon</a>
+        <a class="jobs-link" href="/jobs">A kész fájlokat később is letöltheted a Feladatok oldalon</a>
       </div>
     </div>
   </div>

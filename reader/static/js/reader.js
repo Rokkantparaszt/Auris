@@ -1003,7 +1003,9 @@ function fetchSegmentData(idx, options = {}) {
         const e = await r.json().catch(() => ({}));
         // During export the API returns 503 export_busy — drop cache entry so we retry later.
         if (e.export_busy) _segCache.delete(idx);
-        throw new Error(e.error || `HTTP ${r.status}`);
+        const error = new Error(e.error || `HTTP ${r.status}`);
+        error.setupNeeded = Boolean(e.setup_needed);
+        throw error;
       }
       return r.json();
     }).then(data => {
@@ -1139,9 +1141,21 @@ async function playSegment(idx, options = {}) {
 
   } catch(e) {
     if (gen !== _playGen) return;   // stale — a newer segment took over
-    charEl.textContent = e.message;
+    charEl.textContent = e.setupNeeded ? 'A beszédmotor nincs kész' : e.message;
+    if (e.setupNeeded) showEngineHelp(e.message);
     stopPlayback();
   }
+}
+
+function showEngineHelp(message) {
+  const tc = document.getElementById('toast-container');
+  if (tc.querySelector('.toast-engine')) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast err toast-engine';
+  toast.innerHTML = `<p>${esc(message)}</p><a class="btn btn-sm btn-primary" href="/settings#setup">Beszédmotor beállítása</a> <button type="button" class="btn btn-sm btn-ghost">Bezárás</button>`;
+  toast.querySelector('button').addEventListener('click', () => toast.remove());
+  tc.appendChild(toast);
+  setTimeout(() => toast.remove(), 15000);
 }
 
 function _onAudioEnded() {
@@ -1643,7 +1657,12 @@ async function loadBookmarks() {
 function renderBookmarks() {
   const list = document.getElementById('bookmark-list');
   if (!_bookmarks.length) {
-    list.innerHTML = '<div style="padding:16px;font-size:.8rem;color:var(--text3);font-style:italic">Még nincs könyvjelző.</div>';
+    list.innerHTML = `
+      <div class="bookmarks-empty-guide">
+        <span class="bookmarks-empty-icon">&#9734;</span>
+        <p>Még nincs elmentett könyvjelződ ebben a könyvben.</p>
+        <p>Jelölj meg egy mondatot a <span class="shortcut-hint">B</span> billentyűvel vagy a felső menü <span class="shortcut-hint">&#9734;</span> gombjával.</p>
+      </div>`;
     return;
   }
   list.innerHTML = _bookmarks.map(bm => `
@@ -1813,19 +1832,27 @@ function renderExportLinks(result, jobId) {
   container.appendChild(jobs);
 }
 
+function selectedExportPreset() {
+  return document.querySelector('input[name="export-preset"]:checked')?.value || 'custom';
+}
+
 document.getElementById('export-btn').onclick = () => {
   const dropdown = document.getElementById('export-dropdown');
   const open = dropdown.classList.toggle('hidden') === false;
   document.getElementById('export-btn').setAttribute('aria-expanded', String(open));
-  if (open) document.getElementById('export-preset').focus();
+  if (open) document.querySelector('input[name="export-preset"]:checked')?.focus();
 };
 
 document.querySelectorAll('input[name="exp-mode"]').forEach(input => {
   input.addEventListener('change', updateExportScope);
 });
 
-document.getElementById('export-preset').addEventListener('change', event => {
-  applyExportPreset(event.target.value);
+document.querySelectorAll('input[name="export-preset"]').forEach(input => {
+  input.addEventListener('change', event => applyExportPreset(event.target.value));
+});
+// Hand-picked details no longer match a preset; show that honestly.
+document.querySelectorAll('input[name="exp-mode"], input[name="exp-audio"], input[name="exp-sub"]').forEach(input => {
+  input.addEventListener('change', () => setExportRadio('export-preset', 'custom'));
 });
 document.getElementById('select-all-chapters').addEventListener('click', () => selectAllExportChapters(true));
 document.getElementById('select-no-chapters').addEventListener('click', () => selectAllExportChapters(false));
@@ -2046,10 +2073,37 @@ _audioA.addEventListener('timeupdate', updateRemainingTime);
 _audioB.addEventListener('timeupdate', updateRemainingTime);
 setTOCOpen(!window.matchMedia('(max-width: 768px)').matches);
 applySpeakerLabelPreference();
-applyExportPreset(document.getElementById('export-preset').value);
+applyExportPreset(selectedExportPreset());
 initMediaSession();
 
 loadTOC();
+
+// Getting-started helpers: count real playback once, explain the page once.
+_audioA.addEventListener('playing', () => window.AurisGuide?.markListened());
+_audioB.addEventListener('playing', () => window.AurisGuide?.markListened());
+window.AurisGuide?.tip(
+  document.getElementById('reader-tip'),
+  'reader',
+  'Így hallgathatod meg a könyvet:',
+  [
+    'Nyomd meg lent a <strong>▶ Lejátszás</strong> gombot, vagy kattints bármelyik mondatra. Az első mondat néhány másodperc, mert a hang menet közben készül.',
+    'Más hangot szeretnél, vagy szereplőhangokat? Kattints fent a <strong>Hangok</strong> gombra.',
+    'Fájlba mentenéd telefonra vagy autóba? Jobb alul: <strong>⬇ Hangoskönyv mentése</strong>.',
+  ],
+);
+if (new URLSearchParams(location.search).get('export') === '1') {
+  document.getElementById('export-btn').click();
+}
+fetch('/api/guide/status').then(r => r.json()).then(status => {
+  if (status.ffmpeg) return;
+  document.querySelectorAll('input[name="exp-audio"][value="mp3"], input[name="exp-audio"][value="m4b"], input[name="export-preset"][value="selected-mp3"], input[name="export-preset"][value="book-m4b"]')
+    .forEach(input => { input.disabled = true; });
+  document.getElementById('export-ffmpeg-note').hidden = false;
+  if (document.querySelector('input[name="export-preset"]:checked')?.disabled) {
+    setExportRadio('export-preset', 'chapter-wav');
+    applyExportPreset('chapter-wav');
+  }
+}).catch(() => {});
 
 function persistTimedProgress() {
   if (_loadedSegIdx !== currentSegIdx || !currentChapterId) return;

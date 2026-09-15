@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Hangok — Auris{% endblock %}
+{% block content %}
+<main class="voices-page">
+  <h1>Hangok</h1>
+  <p class="voices-lead">A hang dönti el, ki olvassa fel a könyvet. Egy könyvhöz <strong>egy narrátorhang</strong> kell, szereplőhangos módban pedig <strong>minden szereplőnek</strong> is jut egy.
+    Itt meghallgathatod és összegyűjtheted a hangokat. A könyvben a <strong>„Hangok”</strong> gombbal adod őket a narrátornak és a szereplőknek.</p>
+
+  <div id="engine-banner" class="engine-banner" hidden>
+    <span id="engine-banner-text">A meghallgatáshoz a beszédmotornak futnia kell.</span>
+    <a class="btn btn-sm btn-primary" href="/settings#setup">Beszédmotor beállítása</a>
+  </div>
+
+  <details class="advanced-panel">
+    <summary>Próbaszöveg módosítása (ezt a mondatot olvassák fel a hangok)</summary>
+    <textarea id="preview-text" rows="2" maxlength="1500">A délutáni fényben csendesen lapoztam a könyvet. – Hát itt vagy végre! – kiáltott fel valaki az ajtóban.</textarea>
+  </details>
+
+  <section class="voices-section" aria-labelledby="my-voices-title">
+    <h2 id="my-voices-title">Hangjaim</h2>
+    <p>Ezekből választhatsz a könyveidben. Adj hozzá egy beépített hangot, vagy készíts újat lent.</p>
+    <div id="my-voices" class="voice-grid"><div class="voice-empty-note">Hangok betöltése…</div></div>
+  </section>
+
+  <section class="voices-section" aria-labelledby="builtin-title">
+    <h2 id="builtin-title">Beépített hangok</h2>
+    <p>Felvétel nélkül, azonnal használhatók. Hallgasd meg őket, és ami tetszik, add a Hangjaim közé.</p>
+    <div id="builtin-voices" class="voice-grid"></div>
+  </section>
+
+  <section class="voices-section" aria-labelledby="create-title">
+    <h2 id="create-title">Új hang készítése</h2>
+    <p>Kétféleképpen készíthetsz saját hangot. Mentés előtt mindig meghallgathatod.</p>
+    <div class="create-voice-grid">
+      <form class="create-voice-card" id="design-form">
+        <h3>A) Hang összeállítása</h3>
+        <p>Add meg, milyen legyen a hang. Nem kell hozzá felvétel.</p>
+        <label>Név<input type="text" id="design-name" maxlength="100" placeholder="például: Mesélő nagymama" required></label>
+        <div class="step-label">Nem</div>
+        <div class="choice-row" role="radiogroup" aria-label="Nem">
+          <label><input type="radio" name="design-gender" value="female" checked><span>Nő</span></label>
+          <label><input type="radio" name="design-gender" value="male"><span>Férfi</span></label>
+        </div>
+        <label>Életkor
+          <select id="design-age">
+            <option value="child">Gyermek</option>
+            <option value="teenager">Kamasz</option>
+            <option value="young adult">Fiatal felnőtt</option>
+            <option value="middle-aged" selected>Középkorú</option>
+            <option value="elderly">Idős</option>
+          </select>
+        </label>
+        <label>Hangmagasság
+          <select id="design-pitch">
+            <option value="very low pitch">Nagyon mély</option>
+            <option value="low pitch">Mély</option>
+            <option value="moderate pitch" selected>Közepes</option>
+            <option value="high pitch">Magas</option>
+            <option value="very high pitch">Nagyon magas</option>
+          </select>
+        </label>
+        <p class="export-help" id="design-warning" hidden>Gyermek- és kamaszhangoknál kerüld a szélsőséges hangmagasságot, és mindig hallgasd meg mentés előtt.</p>
+        <div class="voice-card-actions">
+          <button type="button" class="btn btn-ghost" id="design-preview">▶ Meghallgatás</button>
+          <button type="submit" class="btn btn-primary">Mentés a Hangjaim közé</button>
+        </div>
+        <p class="voice-status" id="design-status" role="status" aria-live="polite"></p>
+      </form>
+
+      <form class="create-voice-card" id="clone-form">
+        <h3>B) Hang egy felvételből</h3>
+        <p>Az Auris egy rövid felvétel alapján utánozza a beszélő hangját. Csak olyan hangot használj, amelynek gazdája ehhez hozzájárult.</p>
+        <div class="step-label">1. Honnan legyen a hang?</div>
+        <div class="choice-row" role="radiogroup" aria-label="A hang forrása">
+          <label><input type="radio" name="clone-source" value="mic" checked><span>🎙 Felveszem a mikrofonnal</span></label>
+          <label><input type="radio" name="clone-source" value="file"><span>📁 Fájlt töltök fel</span></label>
+        </div>
+
+        <div id="clone-source-mic" class="recorder">
+          <p class="recorder-intro">Olvasd fel ezt a szöveget természetes hangon, mintha mesélnél. Ha elvéted, nem baj – az átiratban javíthatod.</p>
+          <blockquote id="record-script" class="record-script"></blockquote>
+          <div class="recorder-row">
+            <button type="button" class="btn btn-sm btn-primary" id="mic-open">🎙 Mikrofon bekapcsolása</button>
+            <label class="mic-select-label" hidden>Mikrofon
+              <select id="mic-select"></select>
+            </label>
+            <button type="button" class="btn btn-sm btn-ghost" id="mic-refresh" hidden>Újrakeresés</button>
+          </div>
+          <div id="mic-live" class="mic-live" hidden>
+            <div class="level-meter" role="meter" aria-label="Mikrofon hangereje" aria-valuemin="-60" aria-valuemax="0">
+              <div class="level-meter-fill" id="mic-level"></div>
+            </div>
+            <p class="mic-level-hint" id="mic-level-hint">Mondj valamit – a csíknak mozognia kell.</p>
+            <div class="recorder-row">
+              <button type="button" class="btn btn-primary" id="record-start">● Felvétel indítása</button>
+              <button type="button" class="btn btn-primary recording-stop" id="record-stop" hidden>■ Kész, leállítom</button>
+              <span class="record-timer" id="record-timer" aria-live="off">0:00</span>
+            </div>
+          </div>
+          <p class="voice-status" id="record-status" role="status" aria-live="polite"></p>
+          <small>Tipp: csendes szobában, a mikrofontól kb. 20 cm-re beszélj. A felvétel legfeljebb 20 másodperc, a végét az Auris egy szünetnél vágja le.</small>
+        </div>
+
+        <label id="clone-source-file" hidden><span class="sr-only">Hangfájl</span>
+          <input type="file" id="clone-file" accept=".wav,.mp3,.m4a,.ogg,audio/wav,audio/mpeg,audio/mp4,audio/ogg">
+          <small>WAV, MP3, M4A vagy OGG. Egyetlen ember beszéljen, háttérzene és zaj nélkül. Ha hosszabb 10 másodpercnél, az Auris egy szünetnél levágja.</small>
+        </label>
+        <div id="clone-clip" class="clone-clip" hidden>
+          <p id="clone-clip-info" class="clone-clip-info"></p>
+          <audio id="clone-clip-audio" controls preload="metadata"></audio>
+        </div>
+        <label><span class="step-label">2. Ellenőrizd, mi hangzik el rajta</span>
+          <textarea id="clone-text" rows="3" maxlength="1500" placeholder="Pontosan azt írd ide, amit a felvételen mondanak." required></textarea>
+          <small id="clone-stt-hint">Az Auris a gépeden magától leírja, mi hangzik el – neked csak javítanod kell.</small>
+        </label>
+        <div id="stt-offer" class="clone-clip" hidden>
+          <p class="clone-clip-info">Szeretnéd, hogy az Auris magától leírja a felvétel szövegét? Ehhez egyszer le kell tölteni a beszédfelismerőt (kb. 1,6 GB). A gépeden fut, fiók és internet nélkül.</p>
+          <button type="button" class="btn btn-sm btn-primary" id="stt-download">Automatikus átirat bekapcsolása</button>
+          <div id="stt-progress" class="progress-wrap hidden"><div class="progress-bar-outer"><div class="progress-bar-inner" id="stt-bar"></div></div><div id="stt-msg" class="progress-msg"></div></div>
+        </div>
+        <div class="voice-card-actions">
+          <button type="button" class="btn btn-sm btn-ghost" id="clone-transcribe" hidden>↻ Átirat újra</button>
+        </div>
+        <label><span class="step-label">3. Adj nevet a hangnak</span><input type="text" id="clone-name" maxlength="100" placeholder="például: Anya hangja" required></label>
+        <div class="voice-card-actions">
+          <button type="button" class="btn btn-ghost" id="clone-preview">▶ Meghallgatás</button>
+          <button type="submit" class="btn btn-primary">Mentés a Hangjaim közé</button>
+        </div>
+        <p class="voice-status" id="clone-status" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+    <details class="advanced-panel">
+      <summary>Hangfájl betöltése egy másik Auris-ból (.aurisvoice)</summary>
+      <label class="btn btn-sm btn-ghost file-picker"><span>.aurisvoice fájl kiválasztása</span><input type="file" id="import-voice" accept=".aurisvoice" hidden></label>
+      <p class="voice-status" id="import-status" role="status" aria-live="polite"></p>
+    </details>
+  </section>
+</main>
+<audio id="voice-audio" class="hidden"></audio>
+{% endblock %}
+{% block scripts %}<script src="/static/js/voice_recorder.js"></script><script src="/static/js/voices.js"></script>{% endblock %}

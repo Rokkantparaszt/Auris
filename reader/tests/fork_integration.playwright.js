@@ -25,6 +25,7 @@ const screenshotDir = process.env.AURIS_SCREENSHOT_DIR || os.tmpdir();
   await page.goto(`${baseUrl}/voice-studio/1`, { waitUntil: 'networkidle' });
   await page.locator('#voice-preview-text').waitFor();
   assert.equal(await page.locator('#voice-preview-text').getAttribute('maxlength'), '1500');
+  await page.locator('.narrator-card > .char-details > .advanced-panel > summary').click();
   await page.locator('.narrator-card .technical-panel summary').click();
   assert.equal(await page.locator('#narrator-download-btn').isVisible(), true);
   assert.equal(await page.getByText('Profil importálása', { exact: true }).isVisible(), true);

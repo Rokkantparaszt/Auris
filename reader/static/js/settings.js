@@ -660,7 +660,7 @@ document.querySelector('.settings-page').addEventListener('change', markSettings
 const initialSettingsCategory = location.hash.slice(1);
 showSettingsCategory(
   document.querySelector(`[data-settings-category="${initialSettingsCategory}"]`)
-    ? initialSettingsCategory : 'speech',
+    ? initialSettingsCategory : 'setup',
   false
 );
 loadSettings().catch(error => {

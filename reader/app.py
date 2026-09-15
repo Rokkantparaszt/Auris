@@ -260,6 +260,11 @@ def _startup():
         try:
             init_db()
             jobs.init_jobs()
+            try:
+                from core.onboarding import cleanup_legacy_samples
+                cleanup_legacy_samples()
+            except Exception as e:
+                log.warning("Failed to remove placeholder sample data: %s", e)
             # Old persisted prompts may contain [surprise-oh]/[question-oh],
             # which ask OmniVoice to vocalize an "oh" before the sentence.
             expression_policy_changed = (
@@ -276,6 +281,11 @@ def _startup():
         # Load TTS lazily in the reader/voice studio. The library/import path
         # deliberately leaves VRAM free for a local language model.
         _startup_complete = True
+
+
+def _engine_not_ready(status: dict):
+    from core.guide_api import engine_not_ready_response
+    return engine_not_ready_response(status)
 
 
 def _default_narrator_instruct() -> str:
@@ -655,6 +665,11 @@ def voice_studio_page(book_id):
             ).fetchone()
     if not _character_analysis_is_active():
         tts.load_async()
+    try:
+        from core import onboarding
+        onboarding.record_event('characters_seen')  # completes the optional guide step
+    except Exception as error:
+        log.warning('Could not record guide progress: %s', error)
     return render_template(
         'voice_studio.html',
         book=book_data,
@@ -1242,7 +1257,7 @@ def list_books():
     with get_conn() as conn:
         rows = conn.execute(
             'SELECT b.id, b.title, b.author, b.language, b.file_type, b.cover_b64, b.added_at, '
-            'b.last_read, b.total_chapters, b.character_analysis_status, '
+            'b.is_sample, b.last_read, b.total_chapters, b.character_analysis_status, '
             'b.character_analysis_message, b.character_analysis_provider, '
             'b.character_analysis_model, b.collection, b.series, b.reading_state, '
             'b.source_url, rp.chapter_id AS progress_chapter_id, '
@@ -1917,7 +1932,7 @@ def preview_character(book_id, char_id):
 
     status = tts.status()
     if status['state'] != 'ready':
-        return jsonify({'error': 'Model not ready', 'status': status}), 503
+        return _engine_not_ready(status)
 
     instruct = (body.get('instruct') or row['instruct'] or '').strip()
     ref_audio = row['ref_audio_path'] if row['ref_audio_path'] else None
@@ -2022,7 +2037,7 @@ def preview_narrator(book_id):
 
     status = tts.status()
     if status['state'] != 'ready':
-        return jsonify({'error': 'Model not ready', 'status': status}), 503
+        return _engine_not_ready(status)
 
     instruct = (body.get('instruct') or _book_narrator_instruct(dict(book))).strip()
     narrator_ref, saved_ref_text = _book_narrator_reference(book_id)
@@ -2198,10 +2213,6 @@ def tts_generate():
     segment_index = body.get('segment_index', 0)
     playback_priority = bool(body.get('playback_priority', False))
 
-    status = tts.status()
-    if status['state'] != 'ready':
-        return jsonify({'error': 'Model not ready', 'status': status}), 503
-
     with get_conn() as conn:
         seg = conn.execute(
             'SELECT * FROM tts_segments WHERE book_id=? AND chapter_id=? AND segment_index=?',
@@ -2210,6 +2221,23 @@ def tts_generate():
         book = conn.execute('SELECT language FROM books WHERE id=?', (book_id,)).fetchone()
 
     language = book['language'] if book and book['language'] else None
+
+    # If the audio segment is already cached on disk, serve it immediately
+    if seg and seg['audio_path'] and os.path.exists(seg['audio_path']):
+        return jsonify({
+            'audio_url': f'/api/audio/{seg["cache_key"]}',
+            'cache_key': seg['cache_key'],
+            'duration_sec': seg['duration_sec'],
+            'text': seg['text'],
+            'character_name': seg['character_name'],
+            'is_dialogue': bool(seg['is_dialogue']),
+            'segment_index': segment_index,
+            'cached': True,
+        })
+
+    status = tts.status()
+    if status['state'] != 'ready':
+        return _engine_not_ready(status)
 
     if not seg:
         ch_lock = _get_chapter_build_lock(book_id, chapter_id)
@@ -3613,6 +3641,8 @@ def check_model_path():
 
 from core.experience_api import bp as experience_blueprint
 app.register_blueprint(experience_blueprint)
+from core.guide_api import bp as guide_blueprint
+app.register_blueprint(guide_blueprint)
 
 if __name__ == '__main__':
     with app.app_context():

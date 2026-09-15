@@ -33,16 +33,24 @@ def initialize():
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS pronunciation_rules (
                 id INTEGER PRIMARY KEY, book_id INTEGER REFERENCES books(id) ON DELETE CASCADE,
-                source TEXT NOT NULL, replacement TEXT NOT NULL
+                source TEXT NOT NULL, replacement TEXT NOT NULL,
+                is_sample INTEGER DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS voice_profiles (
                 id INTEGER PRIMARY KEY, name TEXT NOT NULL,
                 instruct TEXT NOT NULL, ref_audio_path TEXT, ref_audio_name TEXT,
-                ref_text TEXT, created_at TEXT DEFAULT (datetime('now'))
+                ref_text TEXT, created_at TEXT DEFAULT (datetime('now')),
+                is_sample INTEGER DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_segments_chapter ON tts_segments(chapter_id,segment_index);
             CREATE INDEX IF NOT EXISTS idx_chapters_book ON chapters(book_id,order_num);
         """)
+        pr_cols = {r["name"] for r in conn.execute("PRAGMA table_info(pronunciation_rules)")}
+        if "is_sample" not in pr_cols:
+            conn.execute("ALTER TABLE pronunciation_rules ADD COLUMN is_sample INTEGER DEFAULT 0")
+        vp_cols = {r["name"] for r in conn.execute("PRAGMA table_info(voice_profiles)")}
+        if "is_sample" not in vp_cols:
+            conn.execute("ALTER TABLE voice_profiles ADD COLUMN is_sample INTEGER DEFAULT 0")
 
 
 def _book(conn, book_id):

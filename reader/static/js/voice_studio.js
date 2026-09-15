@@ -14,6 +14,7 @@ let singleNarratorMode = Boolean(studioWindow.SINGLE_NARRATOR_MODE);
 let narratorHasRefAudio = Boolean(studioWindow.NARRATOR_HAS_REF_AUDIO);
 let narratorRefAudioName = studioWindow.NARRATOR_REF_AUDIO_NAME || "Korábban feltöltött WAV";
 let voiceProfiles = [];
+let builtinVoices = [];
 let loadedCharacters = [];
 const previewAudio = studioDocument?.getElementById("preview-audio") || null;
 
@@ -217,17 +218,224 @@ function syncNarratorRefUI() {
     remove.disabled = !narratorHasRefAudio;
     remove.title = narratorHasRefAudio ? "" : "Nincs aktív narrátori referenciahang.";
   }
+  updateNarratorVoiceLabel();
+}
+
+function updateNarratorVoiceLabel() {
+  const label = document.getElementById("current-voice-narrator");
+  if (label) {
+    label.textContent = currentVoiceName({
+      instruct: narratorInstruct,
+      ref_audio_name: narratorHasRefAudio ? narratorRefAudioName : "",
+    });
+  }
 }
 
 function syncSingleNarratorUI() {
-  const toggle = document.getElementById("single-narrator-mode");
-  if (toggle) toggle.checked = singleNarratorMode;
+  document.querySelectorAll('[name="book-narration-mode"]').forEach((input) => {
+    input.checked = input.value === (singleNarratorMode ? "single" : "multi");
+  });
+  document.getElementById("characters-section")?.classList.toggle("characters-muted", singleNarratorMode);
   const note = document.getElementById("character-voice-note");
   if (!note) return;
   note.textContent = singleNarratorMode
-    ? "Az egy narrátoros mód aktív. A szereplők hangjai szerkeszthetők, de a lejátszás és az export a narrátor hangját használja."
+    ? "Most az „Egy narrátor” mód van bekapcsolva, ezért a szereplők is a narrátor hangján szólalnak meg. A szereplőhangokhoz fent válaszd a „Szereplőhangok” módot."
     : "";
   note.classList.toggle("hidden", !singleNarratorMode);
+}
+
+// ── Quick voice picker (built-in voices and "Hangjaim") ──────────────────────
+
+function pickerSuffix(charId) {
+  return charId === null ? "narrator" : String(charId);
+}
+
+function currentVoiceName(voice) {
+  if (voice.ref_audio_path || voice.ref_audio_name) {
+    return `Saját felvétel (${voice.ref_audio_name || "WAV"})`;
+  }
+  const instruct = String(voice.instruct || "").trim();
+  const profile = voiceProfiles.find((item) => !item.ref_audio_path && item.instruct === instruct);
+  if (profile) return profile.name;
+  const builtin = builtinVoices.find((item) => item.instruct === instruct);
+  if (builtin) return builtin.name;
+  return studioWindow.AurisGuide?.describeVoice({ instruct }) || instruct || "Alapértelmezett hang";
+}
+
+function voiceChoiceOptions() {
+  const mine = voiceProfiles.map((profile) => (
+    `<option value="profile:${profile.id}">${esc(profile.name)}</option>`
+  )).join("");
+  const builtin = builtinVoices.map((voice) => (
+    `<option value="builtin:${esc(voice.id)}">${esc(voice.name)} – ${esc(voice.description)}</option>`
+  )).join("");
+  return `<option value="">Válassz hangot…</option>`
+    + (mine ? `<optgroup label="Hangjaim">${mine}</optgroup>` : "")
+    + `<optgroup label="Beépített hangok">${builtin}</optgroup>`;
+}
+
+function voicePickerHtml(charId, voice) {
+  const suffix = pickerSuffix(charId);
+  const argument = charId === null ? "null" : String(charId);
+  return `<div class="voice-picker">
+    <div class="voice-picker-current">Jelenlegi hang: <strong id="current-voice-${suffix}">${esc(currentVoiceName(voice))}</strong></div>
+    <div class="voice-picker-row">
+      <label class="sr-only" for="pick-${suffix}">Új hang</label>
+      <select id="pick-${suffix}" class="vc-select">${voiceChoiceOptions()}</select>
+      <button type="button" class="btn btn-sm btn-ghost" onclick="previewPickedVoice(${argument}, this)">▶ Meghallgatás</button>
+      <button type="button" class="btn btn-sm btn-primary" onclick="usePickedVoice(${argument}, this)">Ezt használom</button>
+    </div>
+    <p class="voice-status" id="pick-status-${suffix}" role="status" aria-live="polite"></p>
+  </div>`;
+}
+
+function pickedVoice(charId) {
+  const value = document.getElementById(`pick-${pickerSuffix(charId)}`)?.value || "";
+  const [kind, id] = value.split(":");
+  if (kind === "profile") return { profile_id: Number(id) };
+  if (kind === "builtin") return { builtin_id: id };
+  return null;
+}
+
+function setPickStatus(charId, text, kind = "") {
+  const el = document.getElementById(`pick-status-${pickerSuffix(charId)}`);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `voice-status${kind ? " is-" + kind : ""}`;
+}
+
+async function previewPickedVoice(charId, button) {
+  const voice = pickedVoice(charId);
+  if (!voice) {
+    setPickStatus(charId, "Előbb válassz hangot a listából.", "error");
+    return;
+  }
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = "Készül…";
+  try {
+    const data = await requestJson("/api/voices/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...voice, text: currentPreviewText() }),
+    });
+    setPickStatus(charId, "");
+    previewAudio.src = `${data.audio_url}?t=${Date.now()}`;
+    await previewAudio.play();
+  } catch (error) {
+    setPickStatus(charId, error.message, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}
+
+async function usePickedVoice(charId, button) {
+  const voice = pickedVoice(charId);
+  if (!voice) {
+    setPickStatus(charId, "Előbb válassz hangot a listából.", "error");
+    return;
+  }
+  button.disabled = true;
+  try {
+    await requestJson(`/api/books/${BOOK_ID}/voice-assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...voice, char_id: charId }),
+    });
+    if (charId === null) {
+      await refreshNarrator();
+      renderNarratorPicker();
+      setPickStatus(null, "Kész! A narrátor mostantól ezzel a hanggal olvas.", "ok");
+    } else {
+      await loadCharacters();
+      document.getElementById(`card-${charId}`)?.setAttribute("open", "");
+      setPickStatus(charId, "Kész! A szereplő mostantól ezzel a hanggal beszél.", "ok");
+    }
+  } catch (error) {
+    setPickStatus(charId, error.message, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderNarratorPicker() {
+  const container = document.getElementById("picker-narrator");
+  if (!container) return;
+  container.innerHTML = voicePickerHtml(null, {
+    instruct: narratorInstruct,
+    ref_audio_name: narratorHasRefAudio ? narratorRefAudioName : "",
+  });
+}
+
+// ── Narration mode ───────────────────────────────────────────────────────────
+
+async function showModeNote() {
+  const note = document.getElementById("mode-note");
+  if (!note) return;
+  if (singleNarratorMode || loadedCharacters.length) {
+    note.hidden = true;
+    return;
+  }
+  let analysis = {};
+  let guide = {};
+  try {
+    [analysis, guide] = await Promise.all([
+      requestJson(`/api/books/${BOOK_ID}/character-analysis`),
+      requestJson("/api/guide/status"),
+    ]);
+  } catch (_) {}
+  note.hidden = false;
+  if (["queued", "running"].includes(analysis.status)) {
+    note.innerHTML = "A szereplők felismerése folyamatban van. Ez fejezetenként eltarthat egy ideig – a <a href=\"/jobs\">Feladatok</a> oldalon követheted. Amint kész, a szereplők itt megjelennek.";
+    setTimeout(loadCharacters, 4000);
+  } else if (guide.llm_configured) {
+    note.innerHTML = `Ebben a könyvben még nincsenek felismert szereplők. Az Auris egy nyelvi modellel megkeresi, ki mit mond.
+      <br><button type="button" class="btn btn-sm btn-primary" id="detect-characters">Szereplők felismerése</button>`;
+    document.getElementById("detect-characters").addEventListener("click", detectCharacters);
+  } else {
+    note.innerHTML = `Ebben a könyvben még nincsenek felismert szereplők. A felismeréshez egy <strong>nyelvi modell</strong> kell
+      (ingyenes helyi program, például LM Studio, vagy OpenAI-fiók). Ezt egyszer kell beállítani, utána itt egy gombbal indíthatod.
+      <br><a class="btn btn-sm btn-primary" href="/settings#characters">Nyelvi modell beállítása</a>
+      <a class="btn btn-sm btn-ghost" href="/docs#beginners">Mi ez?</a>`;
+  }
+}
+
+async function detectCharacters(event) {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    await requestJson(`/api/books/${BOOK_ID}/reanalyze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    await showModeNote();
+  } catch (error) {
+    button.disabled = false;
+    showError("A szereplők felismerése nem indult el", error);
+  }
+}
+
+async function changeNarrationMode(event) {
+  const wanted = event.target.value === "single";
+  const previous = singleNarratorMode;
+  singleNarratorMode = wanted;
+  syncSingleNarratorUI();
+  try {
+    const data = await requestJson(`/api/books/${BOOK_ID}/narrator`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ single_narrator_mode: wanted }),
+    });
+    singleNarratorMode = Boolean(data.single_narrator_mode);
+    syncSingleNarratorUI();
+    await showModeNote();
+  } catch (error) {
+    singleNarratorMode = previous;
+    syncSingleNarratorUI();
+    showError("A mód váltása nem sikerült", error);
+  }
 }
 
 function setNarratorControls(instruct) {
@@ -248,14 +456,8 @@ function initNarratorControls() {
   setNarratorControls(narratorInstruct || DEFAULT_NARRATOR_INSTRUCT);
   ["narrator-gender", "narrator-age", "narrator-pitch", "narrator-accent"]
     .forEach((id) => document.getElementById(id)?.addEventListener("change", updateNarratorPreview));
-  const toggle = document.getElementById("single-narrator-mode");
-  if (toggle) {
-    toggle.checked = singleNarratorMode;
-    toggle.addEventListener("change", () => {
-      singleNarratorMode = toggle.checked;
-      syncSingleNarratorUI();
-    });
-  }
+  document.querySelectorAll('[name="book-narration-mode"]')
+    .forEach((input) => input.addEventListener("change", changeNarrationMode));
   syncSingleNarratorUI();
   syncNarratorRefUI();
 }
@@ -320,10 +522,13 @@ function renderCharacters(characters, filterActive) {
     return `<details class="character-card voice-character" id="card-${character.id}">
       <summary class="character-summary">
         <span class="char-avatar" style="background:${esc(character.color_hex || "#d8b4fe")};color:#1a1a2e">${esc(initial)}</span>
-        <span class="character-summary-text"><strong>${esc(character.name)}</strong><span>${esc(gender)} · ${Number(character.frequency) || 0} megszólalás</span></span>
-        <span class="summary-action" aria-hidden="true">Beállítások</span>
+        <span class="character-summary-text"><strong>${esc(character.name)}</strong><span>${esc(gender)} · ${Number(character.frequency) || 0} megszólalás · Hang: ${esc(currentVoiceName(character))}</span></span>
+        <span class="summary-action" aria-hidden="true">Hang cseréje</span>
       </summary>
       <div class="char-details voice-character-body">
+        ${voicePickerHtml(character.id, character)}
+        <details class="advanced-panel">
+        <summary>Haladó: saját felvétel, finomhangolás, hang mentése</summary>
         ${profileControls(character.id, character.name)}
         <div class="clone-section clone-prominent">
           <div id="ref-status-${character.id}" class="reference-status${character.ref_audio_path ? "" : " hidden"}">
@@ -354,6 +559,7 @@ function renderCharacters(characters, filterActive) {
             <button class="btn btn-sm btn-primary" type="button" onclick="saveChar(${character.id})">Mentés</button>
           </div>
         </details>
+        </details>
       </div>
     </details>`;
   }).join("");
@@ -378,11 +584,17 @@ async function loadCharacters() {
       const analysis = await requestJson(`/api/books/${BOOK_ID}/character-analysis`);
       const active = analysis.status === "queued" || analysis.status === "running";
       const list = document.getElementById("char-list");
-      if (list) list.innerHTML = `<div class="voice-empty">${esc(analysis.message || "Nem található szereplő.")}</div>`;
+      if (list) {
+        list.innerHTML = `<div class="voice-empty">${filterActive
+          ? "Ebben a fejezetben nincs felismert szereplő."
+          : "Ebben a könyvben még nincsenek felismert szereplők. Szereplőhangokhoz fent válaszd a „Szereplőhangok” módot."}</div>`;
+      }
       if (active) setTimeout(loadCharacters, 1500);
+      if (!filterActive) await showModeNote();
       return;
     }
     renderCharacters(loadedCharacters, filterActive);
+    await showModeNote();
   } catch (error) {
     const list = document.getElementById("char-list");
     if (list) list.innerHTML = `<div class="voice-empty status-error">${esc(error.message)}</div>`;
@@ -426,6 +638,7 @@ async function saveNarrator() {
     narratorInstruct = data.instruct || instruct;
     singleNarratorMode = Boolean(data.single_narrator_mode);
     syncSingleNarratorUI();
+    updateNarratorVoiceLabel();
     flashSaved(document.getElementById("narrator-instruct-preview"));
     return true;
   } catch (error) {
@@ -698,7 +911,25 @@ function initializeVoiceStudio() {
     const active = Boolean(document.getElementById("chapter-character-filter")?.checked && CURRENT_CHAPTER_ID);
     renderCharacters(loadedCharacters, active);
   });
-  loadProfiles().then(loadCharacters).catch((error) => showError("A hangprofilok betöltése sikertelen", error));
+  requestJson("/api/voices/builtin")
+    .then((voices) => { builtinVoices = voices; })
+    .catch(() => {})
+    .then(loadProfiles)
+    .then(() => {
+      renderNarratorPicker();
+      return loadCharacters();
+    })
+    .catch((error) => showError("A hangok betöltése sikertelen", error));
+  studioWindow.AurisGuide?.tip(
+    document.getElementById("studio-tip"),
+    "voice-studio",
+    "Így adsz hangot a könyvnek:",
+    [
+      "Válaszd ki, hogy <strong>egy narrátor</strong> olvassa-e az egészet, vagy <strong>szereplőhangokkal</strong> szóljon.",
+      "A narrátornál (és szereplőhangoknál a szereplőknél) válassz a listából, hallgasd meg a <strong>▶</strong> gombbal, majd kattints: <strong>Ezt használom</strong>.",
+      "Menj vissza a könyvhöz, és nyomd meg a lejátszást.",
+    ],
+  );
 }
 
 if (studioDocument) {
@@ -711,6 +942,8 @@ if (studioDocument) {
     loadNarratorRefText,
     loadRefText,
     previewChar,
+    previewPickedVoice,
+    usePickedVoice,
     removeNarratorRef,
     removeRef,
     saveChar,
