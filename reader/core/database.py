@@ -162,6 +162,8 @@ def init_db():
             conn.execute("ALTER TABLE books ADD COLUMN character_analysis_model TEXT")
         if "character_analysis_updated_at" not in cols:
             conn.execute("ALTER TABLE books ADD COLUMN character_analysis_updated_at TEXT")
+        if "is_sample" not in cols:
+            conn.execute("ALTER TABLE books ADD COLUMN is_sample INTEGER DEFAULT 0")
 
         char_cols = {
             row["name"]

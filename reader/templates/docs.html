@@ -7,6 +7,7 @@
       <div class="docs-toc-label">Tartalom</div>
       <nav class="docs-toc">
         <a href="#overview" class="active">Áttekintés</a>
+        <a href="#beginners">Kezdőknek: lépésről lépésre</a>
         <a href="#auris">Auris funkciók</a>
         <a href="#workflow">Munkafolyamat</a>
         <a href="#speaker-review">Szereplők ellenőrzése</a>
@@ -45,6 +46,61 @@
       </div>
       <a class="docs-settings-link" href="/settings">Beállítások megnyitása <span aria-hidden="true">→</span></a>
     </header>
+
+    <section class="docs-section docs-section-tinted" id="beginners">
+      <div class="docs-section-heading">
+        <span class="docs-section-index">★</span>
+        <div>
+          <h2>Kezdőknek: így lesz a könyvből hangoskönyv</h2>
+          <p>Technikai tudás nélkül, lépésről lépésre. Az Auris felül, az <strong>Első lépések</strong> gombbal is végigvezet, és kipipálja a kész lépéseket.</p>
+        </div>
+      </div>
+      <div class="docs-two-column">
+        <div>
+          <h3>1. A beszédmotor telepítése (egyszer)</h3>
+          <p>Az Auris a saját gépeden, internet nélkül olvas fel. Ehhez egy kb. 3 GB-os „beszédmotort” kell egyszer letölteni: <a href="/settings#setup">Beállítások → Gyors beállítás</a> → <strong>Letöltés indítása</strong>. Ha a jobb felső sarokban „Beszédmotor kész” látszik, minden rendben.</p>
+
+          <h3>2. Hangok</h3>
+          <p>A <strong>hang</strong> dönti el, ki olvassa a könyvet. A <a href="/voices">Hangok</a> oldalon:</p>
+          <ul class="docs-check-list">
+            <li><strong>Beépített hangok</strong> – 8 kész hang (mesélőnő, mély hangú mesélő, idős férfi, kislány…). Nem kell hozzá semmi, csak meghallgatod és a <strong>+ Hangjaimhoz</strong> gombbal elmented.</li>
+            <li><strong>Hang összeállítása</strong> – megadod a nemet, életkort és hangmagasságot.</li>
+            <li><strong>Saját hang mikrofonnal</strong> – a Hangok oldalon kapcsold be a mikrofont, és olvasd fel a megadott rövid szöveget. Ha elvéted, nem baj: az átirat azt írja le, ami valóban elhangzott, és javíthatod. Ha a böngésző nem engedi a mikrofont, kattints a címsorban a lakat ikonra, és engedélyezd.</li>
+            <li><strong>Hang egy felvételből</strong> – egy WAV, MP3, M4A vagy OGG felvételből és annak pontos szövegéből az Auris utánozza a beszélő hangját. Hosszabb felvételnél automatikusan az első 10 másodpercet használja. Az átiratot is elkészíti a gépeden (Whisper beszédfelismerő, egyszeri kb. 1,6 GB-os letöltés, fiók és internet nélkül) – neked csak ellenőrizned kell. Csak a beszélő engedélyével használd.</li>
+          </ul>
+
+          <h3>3. Könyv hozzáadása</h3>
+          <p>A <a href="/">Könyvtár</a> oldalon: <strong>+ Könyv hozzáadása</strong>. Ellenőrizd a címet, válaszd ki a narrátor hangját, és kattints a <strong>Hozzáadás</strong> gombra. Kipróbáláshoz ott van a <strong>Próbakönyv</strong> is: egy rövid történet, amelyben a szereplők hangjai már be vannak állítva.</p>
+        </div>
+        <div>
+          <h3>4. Meghallgatás egy narrátorral</h3>
+          <p>Nyisd meg a könyvet, és nyomd meg lent a <strong>▶</strong> gombot (vagy a szóközt). Bármelyik mondatra kattintva onnan folytatja. A hang menet közben készül, ezért az első mondat néhány másodperc.</p>
+
+          <h3>5. Szereplőhangok (nem kötelező)</h3>
+          <p>A könyvben kattints a <strong>🎙 Hangok</strong> gombra, és válaszd a <strong>Szereplőhangok</strong> módot. Ilyenkor a párbeszédeket a szereplők a saját hangjukon mondják. Minden szereplőnél válassz hangot, hallgasd meg, majd <strong>Ezt használom</strong>.</p>
+          <p>Saját könyvnél a szereplőket egy <strong>nyelvi modell</strong> keresi meg a szövegben. Ez egy külön program (például az ingyenes <em>LM Studio</em>) vagy egy fizetős OpenAI-fiók – beállítása: <a href="/settings#characters">Beállítások → Szereplők és narrátor</a>, részletek lent a <a href="#llm-detection">Helyi LLM felismerés</a> részben. Ha nincs ilyened, maradj az egy narrátoros módnál.</p>
+
+          <h3>6. Hangoskönyv mentése</h3>
+          <p>A könyvben jobb alul: <strong>⬇ Hangoskönyv mentése</strong>. Válaszd ki, mit szeretnél:</p>
+          <ul class="docs-check-list">
+            <li><strong>Teljes könyv egy fájlban (M4B)</strong> – telefonos hangoskönyv-lejátszókhoz.</li>
+            <li><strong>Fejezetenként MP3</strong> – szinte minden lejátszón és autóban megy.</li>
+            <li><strong>Csak ez a fejezet (WAV)</strong> – legjobb minőség, szerkesztéshez.</li>
+          </ul>
+          <p>Az MP3-hoz és M4B-hez az ingyenes FFmpeg program kell (<a href="#import-tools">telepítés</a>). A kész fájlokat a <a href="/jobs">Feladatok</a> oldalon is letöltheted.</p>
+        </div>
+      </div>
+      <div class="docs-callout">
+        <span class="docs-callout-icon" aria-hidden="true">?</span>
+        <div>
+          <strong>Gyakori kérdések</strong>
+          <p><strong>Lenyomtam a lejátszást, de nem szól.</strong> Nézd meg a jobb felső sarkot: ha nem „Beszédmotor kész”, kattints rá, és kövesd a Gyors beállítás lépéseit. Első indításkor a motor betöltése pár percig tart.<br>
+          <strong>Nem tetszik a hang.</strong> A könyvben 🎙 Hangok → válassz másikat → Ezt használom. A már elkészült részek maguktól újragenerálódnak.<br>
+          <strong>Rosszul ejt egy nevet.</strong> <a href="/settings#dictionary">Beállítások → Kiejtési szótár</a>: írd be, hogyan kell kiejteni.<br>
+          <strong>A párbeszédet rossz szereplő mondja.</strong> A könyvben a <strong>Beszélők javítása</strong> gombbal átállíthatod.</p>
+        </div>
+      </div>
+    </section>
 
     <section class="benchmark-lead docs-engine-intro" aria-labelledby="engine-title">
       <div class="benchmark-lead-intro">

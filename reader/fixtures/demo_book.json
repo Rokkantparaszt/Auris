@@ -1,0 +1,24 @@
+{
+  "title": "A kék esernyő",
+  "author": "Auris próbakönyv",
+  "language": "hu",
+  "description": "Rövid, eredeti próbatörténet narrátorral és három szereplővel. Ezen kipróbálhatod az egy narrátoros és a szereplőhangos felolvasást, a hangok cseréjét és az exportálást.",
+  "narrator_instruct": "female, middle-aged, moderate pitch",
+  "characters": [
+    {"name": "Nagyapa", "gender": "male", "instruct": "male, elderly, low pitch", "color_hex": "#f4b183"},
+    {"name": "Panni", "gender": "female", "instruct": "female, young adult, high pitch", "color_hex": "#a9d18e"},
+    {"name": "Feri", "gender": "male", "instruct": "male, middle-aged, moderate pitch", "color_hex": "#9dc3e6"}
+  ],
+  "chapters": [
+    {
+      "title": "Eső a kertben",
+      "speakers": ["Nagyapa", "Nagyapa", "Panni", "Nagyapa", "Panni", "Nagyapa", "Panni", "Nagyapa"],
+      "content": "Esett az eső, amikor Panni megérkezett a nagyapjához. A kertkapu nyikorogva nyílt ki, és a diófa leveleiről nagy cseppek potyogtak a kavicsos útra.\n\nNagyapa a verandán várta, kezében egy régi, kék esernyővel.\n\n– Hát megjöttél, kincsem! – kiáltotta nagyapa, és már sietett is le a lépcsőn. – Gyere gyorsan, mielőtt bőrig áznál!\n\n– Szervusz, nagyapa! Nem baj az eső. Útközben megszámoltam a pocsolyákat, tizenhét volt.\n\n– Tizenhét? Az bizony szép szám. Én fiatalkoromban csak tizenkettőig jutottam, mert mindegyikbe beleugrottam.\n\nBent a konyhában meleg volt, és friss kalács illata szállt. Panni leült az ablak mellé, és a párás üvegre egy kis házat rajzolt.\n\n– Nagyapa, miért olyan kopott ez az esernyő? Nem akarsz venni egy újat?\n\nNagyapa elmosolyodott, és leült mellé.\n\n– Ezt az esernyőt a nagymamádtól kaptam, azon a napon, amikor megismerkedtünk. Akkor is esett. Ő tartotta fölém, pedig még azt sem tudta, hogy hívnak.\n\n– És aztán mi történt?\n\n– Aztán hazakísért. Vagy én őt. Ezen a mai napig vitatkozunk."
+    },
+    {
+      "title": "A váratlan levél",
+      "speakers": ["Feri", "Nagyapa", "Feri", "Panni", "Nagyapa", "Panni", "Feri"],
+      "content": "Délután elállt az eső, és a nap előbukkant a felhők mögül. Valaki hármat kopogott a kapun.\n\n– Jó napot, Lajos bácsi! Ajánlott levelet hoztam, alá kell írni.\n\n– Jöjjön csak beljebb, Feri! Panni, hozd ide a szemüvegemet, légy szíves.\n\nPanni futva hozta a szemüveget. A postás addig a sapkáját forgatta a kezében.\n\n– Messziről jött ez a levél. Ilyen bélyeget még sosem láttam.\n\nNagyapa óvatosan felbontotta a borítékot. Hosszan olvasta, aztán levette a szemüvegét, és megtörölte a szemét.\n\n– Csak nem rossz hír?\n\n– Dehogy, kincsem. A nagybátyád írt, Kanadából. Nyáron hazajön, és elhozza a családját is.\n\n– Akkor végre megismerem az unokatestvéreimet!\n\nA postás elégedetten bólintott, mintha ő maga írta volna a jó hírt.\n\n– Na, ezért szeretem ezt a munkát. Viszontlátásra, Lajos bácsi!\n\nEste Panni az ablakból nézte, ahogy a kék esernyő ott szárad a verandán. Úgy tűnt neki, mintha az is mosolyogna."
+    }
+  ]
+}

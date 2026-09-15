@@ -121,6 +121,10 @@ DEFAULTS: dict = {
     'font_size': 18,
     'font_family': 'serif',
     'line_height': 1.9,
+
+    # Getting-started guide
+    'guide_dismissed': False,
+    'onboarding_events': {},
 }
 
 

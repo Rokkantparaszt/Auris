@@ -1,37 +1,46 @@
 {% extends "base.html" %}
-{% block title %}Hangstúdió – {{ book.title }}{% endblock %}
+{% block title %}Hangok – {{ book.title }}{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/css/voice-experience.css">
 {% endblock %}
 {% block content %}
 <main class="studio-page voice-studio-page">
   <header class="studio-header">
-    <a href="/reader/{{ book.id }}" class="btn btn-sm btn-ghost">&#8592; Vissza az olvasóhoz</a>
+    <a href="/reader/{{ book.id }}" class="btn btn-sm btn-ghost">&#8592; Vissza a könyvhöz</a>
     <div>
-      <p class="voice-eyebrow">Hangstúdió</p>
+      <p class="voice-eyebrow">Hangok ebben a könyvben</p>
       <h1>{{ book.title }}</h1>
-      <p class="voice-intro">Válassz mentett hangot, vagy állíts be külön narrátort és szereplőhangokat.</p>
+      <p class="voice-intro">Itt döntöd el, ki olvassa fel a könyvet. A változás azonnal érvényes, a könyv következő lejátszása már az új hangokkal szól.</p>
     </div>
   </header>
 
-  <section class="studio-narrator" aria-labelledby="preview-text-title">
-    <h2 id="preview-text-title" class="studio-section-title">Próbaszöveg</h2>
-    <article class="character-card narrator-card">
-      <div class="char-avatar narrator-avatar" aria-hidden="true">▶</div>
-      <div class="char-details">
-        <label for="voice-preview-text">Ezt a magyar szöveget olvassa fel a próbahang</label>
-        <textarea id="voice-preview-text" class="reference-text" rows="3" maxlength="1500">Az árvíztűrő tükörfúrógép próbája tisztán és természetesen szól magyarul.</textarea>
-        <p class="studio-note">A szöveg csak a próbahanghoz használatos, nem módosítja a könyvet. Legfeljebb 1500 karakter.</p>
-      </div>
-    </article>
+  <div id="studio-tip"></div>
+
+  <section class="studio-narrator" aria-labelledby="mode-title">
+    <h2 id="mode-title" class="studio-section-title">1. Hogyan szólaljon meg a könyv?</h2>
+    <div class="mode-choice" role="radiogroup" aria-labelledby="mode-title">
+      <label class="mode-card">
+        <input type="radio" name="book-narration-mode" value="single"{% if book.single_narrator_mode %} checked{% endif %}>
+        <span><strong>Egy narrátor</strong><small>Az egész könyvet egyetlen hang olvassa, a párbeszédeket is. Egyszerű és gyors – kezdésnek ez az ajánlott.</small></span>
+      </label>
+      <label class="mode-card">
+        <input type="radio" name="book-narration-mode" value="multi"{% if not book.single_narrator_mode %} checked{% endif %}>
+        <span><strong>Szereplőhangok</strong><small>A párbeszédeket minden szereplő a saját hangján mondja, a többit a narrátor olvassa. Olyan, mint egy hangjáték.</small></span>
+      </label>
+    </div>
+    <div id="mode-note" class="mode-note" role="status" aria-live="polite" hidden></div>
   </section>
 
   <section class="studio-narrator" aria-labelledby="narrator-title">
-    <h2 id="narrator-title" class="studio-section-title">Narrátor</h2>
+    <h2 id="narrator-title" class="studio-section-title">2. A narrátor hangja</h2>
     <article class="character-card narrator-card">
       <div class="char-avatar narrator-avatar" aria-hidden="true">N</div>
       <div class="char-details">
         <h3 class="char-name">Narrátor</h3>
+        <div id="picker-narrator"></div>
+
+        <details class="advanced-panel">
+          <summary>Haladó: saját felvétel, finomhangolás, hang mentése</summary>
 
         <section class="profile-controls" aria-label="Narrátor mentett hangprofilja">
           <label for="profile-narrator">Mentett hangprofil</label>
@@ -45,7 +54,7 @@
           <div class="profile-save-row">
             <label class="sr-only" for="profile-name-narrator">Új narrátorprofil neve</label>
             <input id="profile-name-narrator" maxlength="100" placeholder="Új hangprofil neve">
-            <button type="button" class="btn btn-sm btn-ghost" onclick="saveCurrentAsProfile(null)">Jelenlegi hang mentése</button>
+            <button type="button" class="btn btn-sm btn-ghost" onclick="saveCurrentAsProfile(null)">Jelenlegi hang mentése a Hangjaim közé</button>
           </div>
           <div class="profile-save-row">
             <button type="button" class="btn btn-sm btn-ghost" onclick="exportSelectedProfile()">Kijelölt profil exportálása</button>
@@ -57,12 +66,12 @@
         </section>
 
         <section class="clone-section clone-prominent" aria-labelledby="narrator-reference-title">
-          <h4 id="narrator-reference-title">Referenciahang</h4>
+          <h4 id="narrator-reference-title">Hang egy felvételből (referenciahang)</h4>
           <div id="narrator-ref-status" class="reference-status{% if not book.narrator_ref_audio_path %} hidden{% endif %}">
-            <span class="reference-status-label">Aktív referencia:</span>
+            <span class="reference-status-label">Aktív felvétel:</span>
             <span id="narrator-ref-name">{{ book.narrator_ref_audio_name or 'Korábban feltöltött WAV' }}</span>
           </div>
-          <label for="narrator-ref-text">Referenciahang pontos átirata</label>
+          <label for="narrator-ref-text">Mi hangzik el a felvételen? (szó szerint)</label>
           <textarea id="narrator-ref-text" class="reference-text" rows="3" placeholder="Pontosan azt írd ide, ami a hangfelvételen elhangzik.">{{ book.narrator_ref_text or '' }}</textarea>
           <div class="reference-actions">
             <label class="btn btn-sm btn-ghost file-picker">
@@ -70,19 +79,13 @@
               <input id="narrator-ref-text-file" type="file" accept=".txt,text/plain" onchange="loadNarratorRefText(event)">
             </label>
             <label class="btn btn-sm btn-primary file-picker">
-              <span>Referencia WAV kiválasztása</span>
+              <span>WAV felvétel kiválasztása</span>
               <input id="narrator-ref-file" type="file" accept=".wav,audio/wav" onchange="uploadNarratorRef(event)">
             </label>
-            <button id="remove-narrator-ref-btn" class="btn btn-sm btn-ghost" type="button" onclick="removeNarratorRef()">Referencia törlése</button>
+            <button id="remove-narrator-ref-btn" class="btn btn-sm btn-ghost" type="button" onclick="removeNarratorRef()">Felvétel törlése</button>
           </div>
-          <p class="studio-note">Tiszta, egyetlen beszélőt tartalmazó, 3–10 másodperces magyar felvétel ajánlott. A pontos átirat javítja a hangklónozás minőségét.</p>
+          <p class="studio-note">Előbb írd be a szöveget, utána válaszd ki a felvételt. Tiszta, egyetlen beszélőt tartalmazó, 3–10 másodperces felvétel ajánlott.</p>
         </section>
-
-        <label class="narrator-mode-row">
-          <input type="checkbox" id="single-narrator-mode">
-          <span>Ez a narrátor olvassa fel a teljes könyvet</span>
-        </label>
-        <p class="studio-note">Bekapcsolva a párbeszédek is a narrátor hangján szólalnak meg.</p>
 
         <details class="technical-panel">
           <summary>Hang finomhangolása</summary>
@@ -132,13 +135,14 @@
             <button class="btn btn-sm btn-primary" type="button" onclick="saveNarrator()">Mentés</button>
           </div>
         </details>
+        </details>
       </div>
     </article>
   </section>
 
-  <section class="studio-characters" aria-labelledby="characters-title">
+  <section class="studio-characters" id="characters-section" aria-labelledby="characters-title">
     <div class="studio-section-title character-heading-row">
-      <h2 id="characters-title">Szereplők <span id="char-count" class="muted"></span></h2>
+      <h2 id="characters-title">3. A szereplők hangjai <span id="char-count" class="muted"></span></h2>
       <label class="character-search-label" for="character-search">
         <span>Szereplő keresése</span>
         <input id="character-search" type="search" autocomplete="off" placeholder="Keresés név alapján…">
@@ -160,6 +164,17 @@
       <div class="loading-spinner">Szereplők betöltése…</div>
     </div>
   </section>
+
+  <details class="advanced-panel">
+    <summary>Próbaszöveg módosítása (ezt olvassák fel a ▶ gombok)</summary>
+    <label for="voice-preview-text" class="sr-only">Próbaszöveg</label>
+    <textarea id="voice-preview-text" class="reference-text" rows="3" maxlength="1500">Az árvíztűrő tükörfúrógép próbája tisztán és természetesen szól magyarul.</textarea>
+  </details>
+
+  <div class="studio-next">
+    <span>Kész? Menj vissza a könyvhöz, és nyomd meg a <strong>▶ Lejátszás</strong> gombot. Új hangot a <a href="/voices">Hangok</a> oldalon készíthetsz.</span>
+    <a class="btn btn-primary" href="/reader/{{ book.id }}">Vissza a könyvhöz</a>
+  </div>
 </main>
 
 <audio id="preview-audio" class="hidden" aria-hidden="true"></audio>

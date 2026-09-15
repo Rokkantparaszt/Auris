@@ -23,16 +23,103 @@ async function sxApi(url, data, method = "POST") {
   if (!r.ok) throw new Error(d.error || "A művelet nem sikerült.");
   return d;
 }
+function setSetupState(id, text, kind) {
+  const el = sx(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `setup-state${kind ? " is-" + kind : ""}`;
+}
 async function loadSetup() {
   try {
     const d = await sxApi("/api/setup/status");
-    sx("setup-hardware").textContent =
-      `Gép: ${d.device}${d.vram_gb ? ` · ${d.vram_gb} GB videomemória` : ""}. FFmpeg: ${d.ffmpeg ? "elérhető" : "hiányzik — MP3/M4B exporthoz szükséges"}.`;
+    sx("setup-hardware").textContent = d.vram_gb
+      ? `A géped: ${d.device}, ${d.vram_gb} GB videomemória – a felolvasás gyors lesz.`
+      : `A géped: ${d.device}. Videokártya nélkül is működik, de a hang lassabban készül; érdemes a „Gyors” minőséget választani.`;
     sx("setup-profile").value = d.profile || "balanced";
   } catch (e) {
     sx("setup-message").textContent = e.message;
   }
+  refreshSetupStates();
 }
+async function refreshSetupStates() {
+  try {
+    const g = await sxApi("/api/guide/status");
+    const engine = g.engine;
+    setSetupState("setup-download-state", engine.model_present ? "Kész" : "Még nincs letöltve", engine.model_present ? "ok" : "warn");
+    sx("setup-download").disabled = engine.model_present;
+    setSetupState(
+      "setup-engine-state",
+      engine.state === "ready" ? "Kész" : engine.state === "loading" ? "Indul…" : engine.state === "error" ? "Hiba" : engine.state === "paused" ? "Szünetel" : "Még nem fut",
+      engine.state === "ready" ? "ok" : "warn",
+    );
+    if (engine.state === "error" && engine.message) sx("setup-message").textContent = "A beszédmotor hibája: " + engine.message;
+    setSetupState("setup-ffmpeg-state", g.ffmpeg ? "Kész" : "Nincs telepítve", g.ffmpeg ? "ok" : "warn");
+    setSetupState("setup-llm-state", g.llm_configured ? "Beállítva" : "Nem kötelező", g.llm_configured ? "ok" : "");
+  } catch (_) {}
+  try {
+    renderSttStatus(await sxApi("/api/stt/status"));
+  } catch (_) {}
+}
+function renderSttStatus(stt) {
+  const downloading = stt.state === "downloading";
+  setSetupState(
+    "setup-stt-state",
+    stt.model_present ? "Kész" : downloading ? `Letöltés… ${stt.percent}%` : "Nem kötelező",
+    stt.model_present ? "ok" : downloading ? "warn" : "",
+  );
+  sx("setup-stt-download").hidden = stt.model_present;
+  sx("setup-stt-download").disabled = downloading;
+  sx("setup-stt-progress").classList.toggle("hidden", !downloading && !stt.error);
+  sx("setup-stt-bar").style.width = `${stt.percent}%`;
+  sx("setup-stt-msg").textContent = stt.error || (downloading ? `Letöltés folyamatban: ${stt.percent}%` : "");
+}
+async function startSttDownload(button) {
+  button.disabled = true;
+  try {
+    renderSttStatus(await sxApi("/api/stt/download", {}));
+  } catch (e) {
+    sx("setup-message").textContent = e.message;
+    button.disabled = false;
+  }
+}
+setInterval(refreshSetupStates, 4000);
+async function startSetupDownload() {
+  sx("setup-download").disabled = true;
+  sx("setup-download-progress").classList.remove("hidden");
+  try {
+    await sxApi("/api/settings/model-download", {});
+    pollSetupDownload();
+  } catch (e) {
+    sx("setup-download-msg").textContent = e.message;
+    sx("setup-download").disabled = false;
+  }
+}
+function pollSetupDownload() {
+  const timer = setInterval(async () => {
+    try {
+      const d = await sxApi("/api/settings/model-download/progress");
+      sx("setup-download-bar").style.width = `${d.pct || 0}%`;
+      if (d.status === "downloading") {
+        sx("setup-download-msg").textContent = `Letöltés folyamatban: ${d.pct || 0}%. Ne zárd be az Auris ablakát.`;
+      } else if (d.status === "done") {
+        clearInterval(timer);
+        sx("setup-download-msg").textContent = "A letöltés kész. Most indítsd el a beszédmotort (2. lépés).";
+        if (typeof loadSettings === "function") loadSettings().catch(() => {});
+        refreshSetupStates();
+      } else if (d.status === "error") {
+        clearInterval(timer);
+        sx("setup-download-msg").textContent = "A letöltés nem sikerült: " + d.message + " Ellenőrizd az internetkapcsolatot, és próbáld újra.";
+        sx("setup-download").disabled = false;
+      }
+    } catch (_) {}
+  }, 1500);
+}
+sxApi("/api/settings/model-download/progress").then((d) => {
+  if (d.status === "downloading") {
+    sx("setup-download-progress").classList.remove("hidden");
+    pollSetupDownload();
+  }
+}).catch(() => {});
 async function applySetupProfile(completed) {
   try {
     await sxApi("/api/setup/profile", {
@@ -40,9 +127,8 @@ async function applySetupProfile(completed) {
       completed,
     });
     await loadSettings();
-    sx("setup-message").textContent = completed
-      ? "Az első beállítás kész. A könyvtárból megnyithatod az első könyvet."
-      : "Minőségprofil alkalmazva. A változás az új generálásokra érvényes.";
+    sx("setup-message").textContent =
+      "Minőség beállítva. A már elkészült hangok az új minőséggel készülnek el újra.";
   } catch (e) {
     sx("setup-message").textContent = e.message;
   }
@@ -69,7 +155,8 @@ async function loadSetupEngine() {
   try {
     await reloadTTS();
     sx("setup-message").textContent =
-      "A betöltés állapotát a felső állapotjelzőn követheted. Ha kész, indíts magyar próbahangot.";
+      "A beszédmotor indul. Amikor a 2. lépésnél megjelenik a „Kész”, hallgasd meg a próbahangot.";
+    refreshSetupStates();
   } catch (error) {
     sx("setup-message").textContent = error.message;
   }

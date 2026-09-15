@@ -7,6 +7,7 @@
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/css/style.css">
 <link rel="stylesheet" href="/static/css/experience.css">
+<link rel="stylesheet" href="/static/css/onboarding.css">
 {% block head %}{% endblock %}
 </head>
 <body>
@@ -14,10 +15,12 @@
   <a class="brand" href="/">Auris<span class="brand-sub">Reader</span></a>
   <span class="nav-links">
     <a href="/" id="nav-library"{% if request.path == '/' %} class="active"{% endif %}>Könyvtár</a>
+    <a href="/voices" id="nav-voices"{% if request.path == '/voices' %} class="active"{% endif %}>Hangok</a>
     <a href="/jobs"{% if request.path == '/jobs' %} class="active"{% endif %}>Feladatok</a>
     <a href="/settings" id="nav-settings"{% if request.path == '/settings' %} class="active"{% endif %}>Beállítások</a>
     <a href="/docs" id="nav-docs"{% if request.path == '/docs' %} class="active"{% endif %}>Súgó</a>
-    <span id="model-badge" class="badge badge-loading" role="status" aria-live="polite">Ellenőrzés…</span>
+    <button type="button" id="nav-guide" class="nav-guide-btn" aria-controls="guide-drawer" aria-expanded="false">Első lépések <span id="nav-guide-progress" class="nav-guide-progress"></span></button>
+    <a id="model-badge" class="badge badge-loading" href="/settings#setup" role="status" aria-live="polite" title="A beszédmotor állapota. Kattints a beállításhoz.">Beszédmotor…</a>
   </span>
 </nav>
 {% block content %}{% endblock %}
@@ -34,18 +37,23 @@ async function pollModelStatus() {
     const r = await fetch('/api/tts/status');
     const s = await r.json();
     badge.className = 'badge';
+    badge.title = 'A beszédmotor állapota. Kattints a beállításhoz.';
     if (s.state === 'ready') {
-      badge.textContent = 'Hang kész';
+      badge.textContent = 'Beszédmotor kész';
       badge.classList.add('badge-ready');
     } else if (s.state === 'loading') {
-      badge.textContent = 'Modell betöltése';
+      badge.textContent = 'Beszédmotor töltődik…';
       badge.classList.add('badge-loading');
+    } else if (s.state === 'paused') {
+      badge.textContent = 'Beszédmotor szünetel';
+      badge.classList.add('badge-idle');
+      badge.title = 'Szereplőelemzés fut. Utána a beszédmotor magától visszatöltődik.';
     } else if (s.state === 'error') {
-      badge.textContent = 'Hanghiba';
+      badge.textContent = 'Beszédmotor: beállítás kell';
       badge.classList.add('badge-error');
-      badge.title = s.message || '';
+      badge.title = (s.message || '') + ' Kattints a beállításhoz.';
     } else {
-      badge.textContent = s.model_exists ? 'Hang készenlétben' : 'Modell hiányzik';
+      badge.textContent = s.model_exists ? 'Beszédmotor pihen' : 'Beszédmotor: beállítás kell';
       badge.classList.add(s.model_exists ? 'badge-idle' : 'badge-error');
     }
   } catch(e) { /* ignore */ }
@@ -53,6 +61,7 @@ async function pollModelStatus() {
 }
 pollModelStatus();
 </script>
+<script src="/static/js/onboarding.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
