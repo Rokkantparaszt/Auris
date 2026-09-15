@@ -15,6 +15,46 @@ with no hosted TTS dependency. Web-article import requires a network connection.
 Character analysis can use a local OpenAI-compatible server without a key, or
 the optional OpenAI API with a separately billed API key.
 
+## What's different in this fork
+
+This fork of [mp3pintyo/Auris](https://github.com/mp3pintyo/Auris) focuses on
+making Auris easy for **non-technical users**: from installing the speech engine
+to a finished audiobook, without reading documentation. The interface stays
+Hungarian. Full details: [pull request #1](https://github.com/Rokkantparaszt/Auris/pull/1)
+and [`ONBOARDING.md`](ONBOARDING.md).
+
+- **„Első lépések” guide:** five steps plus one optional one: engine → voices →
+  book → listen → character voices → export. Each step has a button that does
+  the job and ticks itself off based on what is actually done.
+- **Quick setup in Settings:** a live checklist with a one-click model download,
+  engine start, test voice, and FFmpeg, language model and speech recogniser
+  status.
+- **Voice library („Hangok”):** 8 built-in voices to preview and add in one
+  click, design a voice by gender, age and pitch, or create one from a recording.
+- **Your own voice from a recording:**
+  - **Sources:** upload WAV, MP3, M4A or OGG, or record with the microphone
+    while reading a fixed Hungarian text.
+  - **Microphone helpers:** device selection, a level meter, and clear messages
+    for missing, blocked, busy or unplugged microphones and for silent, short,
+    quiet or distorted takes.
+  - **Automatic clip preparation:** leading silence is removed and the clip is
+    cut at a natural pause (10 s at most), never mid-word.
+  - **Offline transcript:** Whisper (`large-v3-turbo`) runs locally after a
+    one-time 1.6 GB download, with no account or cloud service. It writes what
+    was actually said, so users just review it.
+- **Simpler per-book voice page:** choose *single narrator* or *character voices*,
+  then for each speaker: pick a voice → ▶ listen → use it. Advanced controls
+  are folded away.
+- **Demo book („A kék esernyő”):** a short original story with its characters
+  already assigned, so character voices can be tried without a language model.
+- **Friendlier import and reader:**
+  - Multi-voice import explains its language-model requirement up front.
+  - The narrator voice can be picked during import.
+  - The reader has prominent „Hangok” and „Hangoskönyv mentése” buttons.
+  - Export offers three plain choices (whole book M4B, MP3 per chapter, or the
+    current chapter as WAV).
+  - A missing speech engine shows a clear message instead of "Model not ready".
+
 ## Screenshots
 
 These images show the earlier layout. The current interface uses Hungarian
@@ -76,7 +116,7 @@ labels and the updated workflows described below and in the built-in help.
 ## Installation
 
 ```bash
-git clone https://github.com/nikhilprasanth/Auris.git
+git clone https://github.com/Rokkantparaszt/Auris.git
 cd Auris
 ```
 
